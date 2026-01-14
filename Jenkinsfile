@@ -69,6 +69,9 @@ pipeline {
                       git config user.name "mohdayaz06"
                       git config user.email "mohammedayaz.r@gmail.com"
 
+                      # Fix detached HEAD in multibranch pipeline
+                      git checkout -B main
+
                       git add k8s/deployment.yaml
                       git commit -m "Update image to ${IMAGE_NAME}" || echo "No changes to commit"
                       git push origin main
