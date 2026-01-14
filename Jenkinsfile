@@ -52,6 +52,7 @@ pipeline {
         stage('Update Kubernetes Manifest (GitOps)') {
             steps {
                 script {
+                    // Replace the container image in deployment.yaml with the correct tag
                     sh """
                       sed -i 's|image:.*|image: ${IMAGE_NAME}|' k8s/deployment.yaml
                     """
@@ -64,14 +65,13 @@ pipeline {
                 branch 'main'
             }
             steps {
-                // Use GitHub credentials (Personal Access Token) to push changes
-                withCredentials([usernamePassword(credentialsId: 'github_creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
+                withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
                     script {
                         sh """
                           git config user.name "mohdayaz06"
                           git config user.email "mohammedayaz.r@gmail.com"
 
-                          # Fix detached HEAD
+                          # Fix detached HEAD in multibranch pipeline
                           git checkout -B main
 
                           git add k8s/deployment.yaml
@@ -81,6 +81,18 @@ pipeline {
                           git push https://${GIT_USER}:${GIT_TOKEN}@github.com/mohdayaz06/Multi-Branch-Prod main
                         """
                     }
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    // Apply the updated manifest to Kubernetes
+                    sh """
+                      kubectl apply -f k8s/deployment.yaml
+                      kubectl rollout restart deployment movie-app
+                    """
                 }
             }
         }
