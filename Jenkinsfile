@@ -65,7 +65,7 @@ pipeline {
             }
             steps {
                 // Use GitHub credentials (Personal Access Token) to push changes
-                withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
+                withCredentials([usernamePassword(credentialsId: 'github_creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
                     script {
                         sh """
                           git config user.name "mohdayaz06"
