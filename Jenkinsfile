@@ -64,18 +64,23 @@ pipeline {
                 branch 'main'
             }
             steps {
-                script {
-                    sh """
-                      git config user.name "mohdayaz06"
-                      git config user.email "mohammedayaz.r@gmail.com"
+                // Use GitHub credentials (Personal Access Token) to push changes
+                withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
+                    script {
+                        sh """
+                          git config user.name "mohdayaz06"
+                          git config user.email "mohammedayaz.r@gmail.com"
 
-                      # Fix detached HEAD in multibranch pipeline
-                      git checkout -B main
+                          # Fix detached HEAD
+                          git checkout -B main
 
-                      git add k8s/deployment.yaml
-                      git commit -m "Update image to ${IMAGE_NAME}" || echo "No changes to commit"
-                      git push origin main
-                    """
+                          git add k8s/deployment.yaml
+                          git commit -m "Update image to ${IMAGE_NAME}" || echo "No changes to commit"
+
+                          # Push using GitHub credentials
+                          git push https://${GIT_USER}:${GIT_TOKEN}@github.com/mohdayaz06/Multi-Branch-Prod main
+                        """
+                    }
                 }
             }
         }
