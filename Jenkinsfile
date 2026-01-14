@@ -4,6 +4,8 @@ pipeline {
     environment {
         DOCKERHUB_CREDENTIALS = credentials('dockerhub_creds')
         IMAGE_REPO = 'mohdayazz/multibranch-flask-app'
+        AWS_REGION = 'ap-south-1'
+        EKS_CLUSTER = 'helm-cluster'
     }
 
     stages {
@@ -81,6 +83,17 @@ pipeline {
                           git push https://${GIT_USER}:${GIT_TOKEN}@github.com/mohdayaz06/Multi-Branch-Prod main
                         """
                     }
+                }
+            }
+        }
+
+        stage('Configure Kubeconfig') {
+            steps {
+                script {
+                    // Ensure kubectl can authenticate with EKS
+                    sh """
+                      aws eks update-kubeconfig --region ${AWS_REGION} --name ${EKS_CLUSTER}
+                    """
                 }
             }
         }
