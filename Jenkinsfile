@@ -4,8 +4,7 @@ pipeline {
     environment {
         DOCKERHUB_CREDENTIALS = credentials('dockerhub_creds')
         IMAGE_REPO = 'mohdayazz/multibranch-flask-app'
-        AWS_REGION = 'ap-south-1'
-        EKS_CLUSTER = 'prod-cluster'
+        GIT_CREDS = credentials('github_creds')
     }
 
     stages {
@@ -16,25 +15,27 @@ pipeline {
             }
         }
 
-        stage('Set Image Tag') {
+        stage('Set Immutable Image Tag') {
             steps {
                 script {
-                    // Sanitize branch name for Docker tag
-                    def safeBranch = env.BRANCH_NAME?.replaceAll('[^a-zA-Z0-9_.-]', '-')
-                    IMAGE_TAG = safeBranch ? safeBranch.toLowerCase() : 'latest'
+                    // Git commit SHA = immutable, production-safe
+                    IMAGE_TAG = sh(
+                        script: "git rev-parse --short HEAD",
+                        returnStdout: true
+                    ).trim()
+
                     IMAGE_NAME = "${IMAGE_REPO}:${IMAGE_TAG}"
-                    echo "✅ Building image: ${IMAGE_NAME}"
+
+                    echo "🚀 Image to be built: ${IMAGE_NAME}"
                 }
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    sh """
-                      docker build -t ${IMAGE_NAME} .
-                    """
-                }
+                sh """
+                  docker build -t ${IMAGE_NAME} .
+                """
             }
         }
 
@@ -53,58 +54,28 @@ pipeline {
 
         stage('Update Kubernetes Manifest (GitOps)') {
             steps {
-                script {
-                    // Replace the container image in deployment.yaml with the correct tag
-                    sh """
-                      sed -i 's|image:.*|image: ${IMAGE_NAME}|' k8s/deployment.yaml
-                    """
-                }
+                sh """
+                  sed -i 's|image:.*|image: ${IMAGE_NAME}|' k8s/deployment.yaml
+                """
             }
         }
 
-        stage('Commit Updated Manifest') {
+        stage('Commit & Push Manifest (Trigger Argo CD)') {
             when {
                 branch 'main'
             }
             steps {
-                withCredentials([usernamePassword(credentialsId: 'github_creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
-                    script {
-                        sh """
-                          git config user.name "mohdayaz06"
-                          git config user.email "mohammedayaz.r@gmail.com"
-
-                          # Fix detached HEAD in multibranch pipeline
-                          git checkout -B main
-
-                          git add k8s/deployment.yaml
-                          git commit -m "Update image to ${IMAGE_NAME}" || echo "No changes to commit"
-
-                          # Push using GitHub credentials
-                          git push https://${GIT_USER}:${GIT_TOKEN}@github.com/mohdayaz06/Multi-Branch-Prod main
-                        """
-                    }
-                }
-            }
-        }
-
-        stage('Configure Kubeconfig') {
-            steps {
                 script {
-                    // Ensure kubectl can authenticate with EKS
                     sh """
-                      aws eks update-kubeconfig --region ${AWS_REGION} --name ${EKS_CLUSTER}
-                    """
-                }
-            }
-        }
+                      git config user.name "mohdayaz06"
+                      git config user.email "mohammedayaz.r@gmail.com"
 
-        stage('Deploy to Kubernetes') {
-            steps {
-                script {
-                    // Apply the updated manifest to Kubernetes
-                    sh """
-                      kubectl apply -f k8s/deployment.yaml
-                      kubectl rollout restart deployment movie-app
+                      git checkout -B main
+
+                      git add k8s/deployment.yaml
+                      git commit -m "Deploy ${IMAGE_NAME}" || echo "No changes"
+
+                      git push https://${GIT_CREDS_USR}:${GIT_CREDS_PSW}@github.com/mohdayaz06/Multi-Branch-Prod main
                     """
                 }
             }
@@ -113,10 +84,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ Pipeline successful for branch: ${BRANCH_NAME}"
+            echo "✅ Build complete. Argo CD will deploy ${IMAGE_NAME}"
         }
         failure {
-            echo "❌ Pipeline failed for branch: ${BRANCH_NAME}"
+            echo "❌ Pipeline failed"
         }
     }
 }
