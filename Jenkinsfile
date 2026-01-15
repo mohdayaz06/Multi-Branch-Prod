@@ -5,7 +5,7 @@ pipeline {
         DOCKERHUB_CREDENTIALS = credentials('dockerhub_creds')
         IMAGE_REPO = 'mohdayazz/multibranch-flask-app'
         AWS_REGION = 'ap-south-1'
-        EKS_CLUSTER = 'helm-cluster'
+        EKS_CLUSTER = 'prod-cluster'
     }
 
     stages {
